@@ -1,0 +1,20 @@
+.gp-stream-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+  color: #174b65;
+  background: #edf9ff;
+  font: 600 15px/1.4 system-ui, sans-serif;
+}
+.gp-stream-notice button {
+  padding: 8px 14px;
+  border: 2px solid #2785a0;
+  border-radius: 999px;
+  background: white;
+  color: #174b65;
+  font: inherit;
+  cursor: pointer;
+}

@@ -414,7 +414,7 @@ function playPractice(){
 function stopAllAudio(){
   stopPractice();stopRecordedChoice();stopAnswerFx();
   if(dressupClipTimer){clearTimeout(dressupClipTimer);dressupClipTimer=null}
-  const video=$("dressup-celebration-video");if(video){video.dataset.rewardPlaybackSession=String((Number(video.dataset.rewardPlaybackSession)||0)+1);video.dataset.rewardPlaybackActive="";video.pause();}
+  const video=$("dressup-celebration-video");if(video){video.dataset.rewardPlaybackSession=String((Number(video.dataset.rewardPlaybackSession)||0)+1);video.dataset.rewardPlaybackActive="";video.pause();window.GPStreamMedia.destroyVideo(video);video.removeAttribute("data-original-source");}
 }
 function cancelReportCapture(){
   const button=$("capture-btn");
@@ -640,14 +640,14 @@ function currentDressupConfig(){return dressupConfigs[activeWeek]||null}
 function resetRewardCard(){const config=currentDressupConfig(),image=document.querySelector(".dressup-gift");image.src="assets/reused/images/kids-3d-present-box.webp";image.alt="A colorful present box containing the athlete dress-up reward";image.classList.remove("character-reward");$("dressup-card").querySelector(".dressup-badge").textContent="NEW REWARD";$("dressup-card").querySelector(".dressup-title").textContent=config?config.cardTitle:"Athlete Dress-Up";$("dressup-card").querySelector(".dressup-prompt").textContent="Tap to open the locker →"}
 function resetDressup(){
   const config=currentDressupConfig();if(!config)return;
-  if(dressupClipTimer){clearTimeout(dressupClipTimer);dressupClipTimer=null}dressupCompletedLevel=0;$("replay-clip").hidden=true;$("replay-clip").disabled=false;const video=$("dressup-celebration-video");video.dataset.rewardPlaybackSession=String((Number(video.dataset.rewardPlaybackSession)||0)+1);video.dataset.rewardPlaybackActive="";video.pause();video.removeAttribute("src");video.load();video.hidden=true;resetRewardCard();dressupApplied=0;dressupInitialized=true;$("dressup-character").src=config.stages[0];$("dressup-character").alt=config.characterAlt;$("dressup-title").textContent=config.modalTitle;
+  if(dressupClipTimer){clearTimeout(dressupClipTimer);dressupClipTimer=null}dressupCompletedLevel=0;$("replay-clip").hidden=true;$("replay-clip").disabled=false;const video=$("dressup-celebration-video");video.dataset.rewardPlaybackSession=String((Number(video.dataset.rewardPlaybackSession)||0)+1);video.dataset.rewardPlaybackActive="";video.pause();window.GPStreamMedia.destroyVideo(video);video.removeAttribute("data-original-source");video.removeAttribute("src");video.load();video.hidden=true;resetRewardCard();dressupApplied=0;dressupInitialized=true;$("dressup-character").src=config.stages[0];$("dressup-character").alt=config.characterAlt;$("dressup-title").textContent=config.modalTitle;
   const unlocked=unlockedDressupCount();
   $("dressup-unlock-message").textContent=`Score: ${lastScore}/${questions.length} — You unlocked ${config.unlockLabels[unlocked-1]}!`;
   $("dressup-status").textContent=`Start with the ${config.items[0].name}!`;
   document.querySelectorAll(".dressup-item").forEach((item,index)=>{const itemConfig=config.items[index],isUnlocked=index<unlocked;item.dataset.item=itemConfig.key;item.querySelector("img").src=itemConfig.image;item.querySelector("img").alt=itemConfig.alt;item.querySelector("b").textContent=itemConfig.label;item.classList.toggle("locked",!isUnlocked);item.classList.remove("applied");item.disabled=!isUnlocked;item.draggable=isUnlocked;item.setAttribute("aria-disabled",String(!isUnlocked))});
 }
 function openDressup(){if(!currentDressupConfig())return;if(!dressupInitialized)resetDressup();$("dressup-modal").hidden=false;$("dressup-close").focus()}
-function closeDressup(){if(dressupClipTimer){clearTimeout(dressupClipTimer);dressupClipTimer=null}stopSpeech();const video=$("dressup-celebration-video"),clip=currentDressupConfig()?.clips[dressupCompletedLevel-1];video.dataset.rewardPlaybackSession=String((Number(video.dataset.rewardPlaybackSession)||0)+1);video.dataset.rewardPlaybackActive="";video.pause();video.hidden=true;if(dressupCompletedLevel&&clip)$("replay-clip").hidden=false;$("dressup-modal").hidden=true}
+function closeDressup(){if(dressupClipTimer){clearTimeout(dressupClipTimer);dressupClipTimer=null}stopSpeech();const video=$("dressup-celebration-video"),clip=currentDressupConfig()?.clips[dressupCompletedLevel-1];video.dataset.rewardPlaybackSession=String((Number(video.dataset.rewardPlaybackSession)||0)+1);video.dataset.rewardPlaybackActive="";video.pause();window.GPStreamMedia.destroyVideo(video);video.removeAttribute("data-original-source");video.hidden=true;if(dressupCompletedLevel&&clip)$("replay-clip").hidden=false;$("dressup-modal").hidden=true}
 function speakDressupDialogue(config,level){
   if(config?.clipHasDialogue)return;
   const dialogue=config?.dialogues?.[level-1];if(!dialogue||!("speechSynthesis" in window))return;
@@ -664,18 +664,21 @@ function playDressupStageClip(config,level,replay=false){
   if(dressupClipTimer){clearTimeout(dressupClipTimer);dressupClipTimer=null}
   video.pause();
   if(!clip){video.dataset.rewardPlaybackActive="";playSound("correct");return}
-  if(!replay)video.src=clip;
-  video.currentTime=0;video.hidden=true;
+  video.hidden=true;
   const current=()=>video.dataset.rewardPlaybackSession===String(session)&&video.dataset.rewardPlaybackActive===String(session)&&activeWeek===week&&dressupCompletedLevel===level&&!$("dressup-modal").hidden&&!document.hidden;
   const showFinal=()=>{if(!current())return;video.dataset.rewardPlaybackActive="";video.hidden=true;$("replay-clip").hidden=false;$("replay-clip").disabled=false};
   // An old play promise must not restore controls or pause a newer clip.
   const stopIfAbandoned=()=>{if(!video.dataset.rewardPlaybackActive)video.pause()};
   video.onplay=()=>{if(!current())stopIfAbandoned()};
   video.onended=()=>{if(video.ended)showFinal()};
-  video.onerror=()=>{if(video.error)showFinal()};
+  video.onerror=()=>{if(video.error||video.dataset.gpStreamState==="error")showFinal()};
+  video.onplaying=()=>{if(current())video.hidden=false;else stopIfAbandoned()};
+  window.GPStreamMedia.setVideoSource(video,clip);
+  video.currentTime=0;
+  window.GPStreamMedia.primeVideo(video);
   const begin=()=>{
     if(!current())return;
-    dressupClipTimer=null;video.hidden=false;
+    dressupClipTimer=null;
     video.play().then(()=>{if(current())speakDressupDialogue(config,level);else stopIfAbandoned()}).catch(showFinal);
   };
   // A new earned look retains its short still-image pause; replay starts directly.
